@@ -1,0 +1,25 @@
+.gitignore
+  s_33917eecf12759::t_869d211456bad6 1-6
+scripts/dbt_with_gcloud_token.sh
+  s_33917eecf12759::t_a93847fddcb4da 1-19
+scripts/load_thelook.sh
+  s_33917eecf12759::t_80ab8a8312c335 1-39
+scripts/mf_with_gcloud_token.sh
+  s_33917eecf12759::t_8a4cf4ca485fe2 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "59a94733b649e8b5aee25d5a70149f6ff30b343e",
+  "prompts": {},
+  "sessions": {
+    "s_33917eecf12759": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a044b7-40c2-75f2-a07f-0611e2f860c9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Suman Das <59254445+sumandas0@users.noreply.github.com>"
+    }
+  }
+}
