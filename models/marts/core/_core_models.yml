@@ -1,0 +1,449 @@
+version: 2
+
+models:
+  - name: time_spine_daily
+    description: >-
+      One row per calendar day from 2018 through 2030, covering the complete
+      TheLook history and a stable future testing horizon for MetricFlow.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: Canonical daily grain for Semantic Layer time joins.
+        granularity: day
+        data_tests: [not_null, unique]
+
+  - name: fct_orders
+    description: >-
+      One row per order with customer acquisition context, fulfillment SLA flags,
+      and item-level financials rolled up to the order grain.
+    semantic_model:
+      enabled: true
+    agg_time_dimension: ordered_at
+    columns:
+      - name: order_id
+        description: Stable order key and table grain.
+        data_tests: [not_null, unique]
+        entity:
+          type: primary
+          name: order
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__users')
+                field: customer_id
+        entity:
+          type: foreign
+          name: customer
+      - name: ordered_at
+        data_tests: [not_null]
+        granularity: day
+        dimension:
+          type: time
+      - name: order_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [cancelled, complete, processing, returned, shipped]
+        dimension:
+          type: categorical
+      - name: acquisition_channel
+        dimension:
+          type: categorical
+      - name: customer_country
+        dimension:
+          type: categorical
+      - name: customer_state
+        dimension:
+          type: categorical
+      - name: customer_gender
+        dimension:
+          type: categorical
+    derived_semantics:
+      dimensions:
+        - name: customer_order_type
+          label: Customer order type
+          type: categorical
+          expr: "case when is_first_order = 1 then 'first' else 'repeat' end"
+    metrics:
+      - name: total_orders
+        label: Total orders
+        description: All submitted orders, including cancelled orders.
+        type: simple
+        agg: count
+        expr: order_id
+      - name: valid_orders
+        label: Valid orders
+        description: Orders not currently marked cancelled.
+        type: simple
+        agg: sum
+        expr: is_valid_order
+      - name: cancelled_orders
+        label: Cancelled orders
+        type: simple
+        agg: sum
+        expr: is_cancelled_order
+      - name: returned_orders
+        label: Returned orders
+        type: simple
+        agg: sum
+        expr: is_returned_order
+      - name: completed_orders
+        label: Completed orders
+        type: simple
+        agg: sum
+        expr: is_completed_order
+      - name: repeat_orders
+        label: Repeat orders
+        type: simple
+        agg: sum
+        expr: "if(is_valid_order = 1, is_repeat_order, 0)"
+      - name: purchasing_customers
+        label: Purchasing customers
+        description: Distinct customers with a non-cancelled order in the query slice.
+        type: simple
+        agg: count_distinct
+        expr: "if(is_valid_order = 1, customer_id, null)"
+      - name: shipped_orders
+        label: Shipped orders
+        type: simple
+        agg: sum
+        expr: is_shipped_order
+      - name: fulfillment_sla_orders
+        label: Orders shipped within 48 hours
+        type: simple
+        agg: sum
+        expr: shipped_within_48h
+      - name: average_fulfillment_hours
+        label: Average fulfillment hours
+        type: simple
+        agg: average
+        expr: fulfillment_hours
+      - name: average_order_value
+        label: Average order value
+        description: Average net sales per non-cancelled order.
+        type: simple
+        agg: average
+        expr: "if(is_valid_order = 1, net_sales_amount, null)"
+      - name: order_cancellation_rate
+        label: Order cancellation rate
+        type: ratio
+        numerator: cancelled_orders
+        denominator: total_orders
+      - name: repeat_order_rate
+        label: Repeat order rate
+        type: ratio
+        numerator: repeat_orders
+        denominator: valid_orders
+      - name: fulfillment_sla_rate
+        label: Fulfillment SLA rate
+        description: Share of shipped orders shipped within 48 hours.
+        type: ratio
+        numerator: fulfillment_sla_orders
+        denominator: shipped_orders
+
+  - name: fct_order_items
+    description: >-
+      One row per order item and the authoritative source for product sales,
+      returns, discounts, cost, and margin metrics.
+    semantic_model:
+      enabled: true
+    agg_time_dimension: ordered_at
+    columns:
+      - name: order_item_id
+        description: Stable order-item key and table grain.
+        data_tests: [not_null, unique]
+        entity:
+          type: primary
+          name: order_item
+      - name: order_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_orders')
+                field: order_id
+        entity:
+          type: foreign
+          name: order
+      - name: customer_id
+        data_tests: [not_null]
+        entity:
+          type: foreign
+          name: customer
+      - name: product_id
+        data_tests: [not_null]
+        entity:
+          type: foreign
+          name: product
+      - name: ordered_at
+        data_tests: [not_null]
+        granularity: day
+        dimension:
+          type: time
+      - name: order_item_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [cancelled, complete, processing, returned, shipped]
+        dimension:
+          type: categorical
+      - name: product_name
+        dimension:
+          type: categorical
+      - name: brand
+        dimension:
+          type: categorical
+      - name: category
+        dimension:
+          type: categorical
+      - name: department
+        dimension:
+          type: categorical
+      - name: distribution_center_name
+        dimension:
+          type: categorical
+      - name: customer_country
+        dimension:
+          type: categorical
+      - name: acquisition_channel
+        dimension:
+          type: categorical
+    metrics:
+      - name: sold_items
+        label: Sold items
+        description: Non-cancelled items, including items subsequently returned.
+        type: simple
+        agg: sum
+        expr: non_cancelled_item_count
+      - name: returned_items
+        label: Returned items
+        type: simple
+        agg: sum
+        expr: returned_item_count
+      - name: gross_sales
+        label: Gross sales
+        description: Sale price of every non-cancelled item before returns.
+        type: simple
+        agg: sum
+        expr: gross_sales_amount
+      - name: refunds
+        label: Refunds
+        description: Sale price of items in returned status.
+        type: simple
+        agg: sum
+        expr: refund_amount
+      - name: net_sales
+        label: Net sales
+        description: Gross sales less returned-item value; cancellations contribute zero.
+        type: simple
+        agg: sum
+        expr: net_sales_amount
+      - name: recognized_revenue
+        label: Recognized revenue
+        description: Sale price only for items in complete status.
+        type: simple
+        agg: sum
+        expr: recognized_revenue_amount
+      - name: booked_cogs
+        label: Booked COGS
+        description: Catalog unit cost for every non-cancelled item.
+        type: simple
+        agg: sum
+        expr: booked_cogs_amount
+      - name: gross_margin
+        label: Gross margin
+        description: Net sales less booked COGS, so returns retain their cost impact.
+        type: simple
+        agg: sum
+        expr: gross_margin_amount
+      - name: discounts
+        label: Discounts
+        type: simple
+        agg: sum
+        expr: discount_amount
+      - name: item_return_rate
+        label: Item return rate
+        type: ratio
+        numerator: returned_items
+        denominator: sold_items
+
+  - name: fct_sessions
+    description: One row per web session with funnel-stage flags and acquisition context.
+    semantic_model:
+      enabled: true
+    agg_time_dimension: session_started_at
+    columns:
+      - name: session_id
+        description: Stable session key and table grain.
+        data_tests: [not_null, unique]
+        entity:
+          type: primary
+          name: session
+      - name: customer_id
+        entity:
+          type: foreign
+          name: customer
+      - name: visitor_key
+        description: Customer ID when identified; otherwise a session-scoped anonymous key.
+        data_tests: [not_null]
+      - name: session_started_at
+        data_tests: [not_null]
+        granularity: day
+        dimension:
+          type: time
+      - name: traffic_source
+        dimension:
+          type: categorical
+      - name: browser
+        dimension:
+          type: categorical
+      - name: deepest_funnel_stage
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [home, department_view, product_view, cart, purchase]
+        dimension:
+          type: categorical
+    metrics:
+      - name: sessions
+        label: Sessions
+        type: simple
+        agg: count
+        expr: session_id
+      - name: visitors
+        label: Visitors
+        type: simple
+        agg: count_distinct
+        expr: visitor_key
+      - name: product_view_sessions
+        label: Product-view sessions
+        type: simple
+        agg: sum
+        expr: had_product_view
+      - name: cart_sessions
+        label: Cart sessions
+        type: simple
+        agg: sum
+        expr: reached_cart
+      - name: converting_sessions
+        label: Converting sessions
+        type: simple
+        agg: sum
+        expr: converted
+      - name: abandoned_cart_sessions
+        label: Abandoned-cart sessions
+        type: simple
+        agg: sum
+        expr: abandoned_cart
+      - name: web_events
+        label: Web events
+        type: simple
+        agg: sum
+        expr: event_count
+      - name: average_session_duration_minutes
+        label: Average session duration (minutes)
+        type: simple
+        agg: average
+        expr: session_duration_minutes
+      - name: session_conversion_rate
+        label: Session conversion rate
+        type: ratio
+        numerator: converting_sessions
+        denominator: sessions
+      - name: cart_to_purchase_rate
+        label: Cart-to-purchase rate
+        type: ratio
+        numerator: converting_sessions
+        denominator: cart_sessions
+      - name: cart_abandonment_rate
+        label: Cart abandonment rate
+        type: ratio
+        numerator: abandoned_cart_sessions
+        denominator: cart_sessions
+
+  - name: dim_customers
+    description: >-
+      One row per registered customer with deterministic RFM-style value and lifecycle
+      segmentation relative to the source snapshot's maximum order date.
+    semantic_model:
+      enabled: true
+    agg_time_dimension: account_created_at
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+        entity:
+          type: primary
+          name: customer
+      - name: account_created_at
+        data_tests: [not_null]
+        granularity: day
+        dimension:
+          type: time
+      - name: acquisition_channel
+        dimension:
+          type: categorical
+      - name: country
+        dimension:
+          type: categorical
+      - name: state
+        dimension:
+          type: categorical
+      - name: gender
+        dimension:
+          type: categorical
+      - name: age_band
+        dimension:
+          type: categorical
+      - name: value_segment
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [prospect, champion, loyal, repeat, one_time]
+        dimension:
+          type: categorical
+      - name: lifecycle_segment
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [never_purchased, active_30d, warm_31_90d, at_risk_91_180d, lapsed_180d_plus]
+        dimension:
+          type: categorical
+    metrics:
+      - name: registered_customers
+        label: Registered customers
+        type: simple
+        agg: sum
+        expr: registered_customer_count
+      - name: portfolio_purchasing_customers
+        label: Portfolio purchasing customers
+        type: simple
+        agg: sum
+        expr: purchasing_customer_count
+      - name: portfolio_lifetime_net_sales
+        label: Portfolio lifetime net sales
+        type: simple
+        agg: sum
+        expr: lifetime_net_sales_amount
+      - name: portfolio_lifetime_gross_margin
+        label: Portfolio lifetime gross margin
+        type: simple
+        agg: sum
+        expr: lifetime_gross_margin_amount
+      - name: average_customer_lifetime_value
+        label: Average customer lifetime value
+        type: ratio
+        numerator: portfolio_lifetime_net_sales
+        denominator: registered_customers
+
+  - name: dim_products
+    description: Product catalog with lifetime sales, return, revenue, and margin performance.
+    columns:
+      - name: product_id
+        data_tests: [not_null, unique]
+      - name: sku
+        data_tests: [not_null]

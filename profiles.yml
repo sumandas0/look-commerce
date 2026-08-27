@@ -1,0 +1,24 @@
+look_commerce:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('DBT_BIGQUERY_PROJECT', 'testing-cto-fivetranai') }}"
+      dataset: "{{ env_var('DBT_BIGQUERY_DATASET', 'analytics_thelook') }}"
+      location: US
+      threads: 8
+      job_execution_timeout_seconds: 600
+      job_retries: 1
+      priority: interactive
+    token:
+      type: bigquery
+      method: oauth-secrets
+      token: "{{ env_var('DBT_BIGQUERY_TOKEN') }}"
+      project: "{{ env_var('DBT_BIGQUERY_PROJECT', 'testing-cto-fivetranai') }}"
+      dataset: "{{ env_var('DBT_BIGQUERY_DATASET', 'analytics_thelook') }}"
+      location: US
+      threads: 8
+      job_execution_timeout_seconds: 600
+      job_retries: 1
+      priority: interactive

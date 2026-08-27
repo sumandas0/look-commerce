@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: thelook
+    description: >-
+      Project-local snapshot of Google's synthetic TheLook ecommerce dataset.
+      The copy isolates the E2E test from changes to the public source.
+    database: "{{ var('thelook_raw_project') }}"
+    schema: "{{ var('thelook_raw_dataset') }}"
+    tables:
+      - name: distribution_centers
+        description: Fulfillment center reference data.
+      - name: events
+        description: Customer web events at event grain.
+      - name: inventory_items
+        description: Physical inventory units, including receipt and sale timestamps.
+      - name: order_items
+        description: Individual products purchased within orders.
+      - name: orders
+        description: Ecommerce order headers and fulfillment lifecycle timestamps.
+      - name: products
+        description: Product catalog and standard unit economics.
+      - name: users
+        description: Synthetic customer accounts and acquisition attributes.
+

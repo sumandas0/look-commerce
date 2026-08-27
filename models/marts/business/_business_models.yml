@@ -1,0 +1,98 @@
+version: 2
+
+models:
+  - name: mart_daily_commerce_performance
+    description: >-
+      Daily executive scorecard for order demand, customer mix, returns, revenue,
+      margin, cancellation, and fulfillment service levels.
+    columns:
+      - name: ordered_date
+        data_tests: [not_null, unique]
+      - name: order_count
+        data_tests: [not_null]
+
+  - name: mart_channel_funnel
+    description: >-
+      Daily acquisition-channel funnel from sessions through product view, cart,
+      and purchase. Revenue is intentionally excluded because events do not carry
+      a trustworthy order identifier for deterministic attribution.
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "concat(cast(session_date as string), '||', traffic_source)"
+    columns:
+      - name: session_date
+        data_tests: [not_null]
+      - name: traffic_source
+        data_tests: [not_null]
+
+  - name: mart_inventory_health
+    description: >-
+      Product-level inventory snapshot with on-hand value, sell-through, aging,
+      sales, return, and margin indicators for merchandising and operations.
+    semantic_model:
+      enabled: true
+    agg_time_dimension: as_of_date
+    columns:
+      - name: product_id
+        data_tests: [not_null, unique]
+        entity:
+          type: primary
+          name: product
+      - name: as_of_date
+        data_tests: [not_null]
+        granularity: day
+        dimension:
+          type: time
+      - name: product_name
+        dimension:
+          type: categorical
+      - name: brand
+        dimension:
+          type: categorical
+      - name: category
+        dimension:
+          type: categorical
+      - name: department
+        dimension:
+          type: categorical
+      - name: distribution_center_name
+        dimension:
+          type: categorical
+    metrics:
+      - name: inventory_units_received
+        label: Inventory units received
+        type: simple
+        agg: sum
+        expr: inventory_units_received
+      - name: inventory_units_sold
+        label: Inventory units sold
+        type: simple
+        agg: sum
+        expr: inventory_units_sold
+      - name: inventory_units_on_hand
+        label: Inventory units on hand
+        type: simple
+        agg: sum
+        expr: inventory_units_on_hand
+      - name: inventory_on_hand_cost
+        label: Inventory on-hand cost
+        type: simple
+        agg: sum
+        expr: inventory_on_hand_cost_amount
+      - name: average_days_to_sell
+        label: Average days to sell
+        type: simple
+        agg: average
+        expr: average_days_to_sell
+      - name: average_on_hand_age_days
+        label: Average on-hand age (days)
+        type: simple
+        agg: average
+        expr: average_on_hand_age_days
+      - name: inventory_sell_through_rate
+        label: Inventory sell-through rate
+        type: ratio
+        numerator: inventory_units_sold
+        denominator: inventory_units_received
+

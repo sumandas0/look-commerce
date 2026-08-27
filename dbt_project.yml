@@ -1,0 +1,26 @@
+name: look_commerce
+version: 1.0.0
+config-version: 2
+
+profile: look_commerce
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  thelook_raw_project: testing-cto-fivetranai
+  thelook_raw_dataset: raw_thelook_ecommerce
+
+models:
+  look_commerce:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      +materialized: table
+      +schema: marts
+

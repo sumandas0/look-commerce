@@ -1,0 +1,130 @@
+version: 2
+
+models:
+  - name: stg_thelook__orders
+    description: Cleaned order headers with normalized statuses and typed timestamps.
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__users')
+                field: customer_id
+      - name: order_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [cancelled, complete, processing, returned, shipped]
+      - name: ordered_at
+        data_tests: [not_null]
+
+  - name: stg_thelook__order_items
+    description: Cleaned order items with prices represented as exact numeric values.
+    columns:
+      - name: order_item_id
+        data_tests: [not_null, unique]
+      - name: order_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__orders')
+                field: order_id
+      - name: customer_id
+        data_tests: [not_null]
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__products')
+                field: product_id
+      - name: inventory_item_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__inventory_items')
+                field: inventory_item_id
+      - name: order_item_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [cancelled, complete, processing, returned, shipped]
+      - name: ordered_at
+        data_tests: [not_null]
+      - name: sale_price
+        data_tests: [not_null]
+
+  - name: stg_thelook__products
+    description: Cleaned product catalog and standard unit economics.
+    columns:
+      - name: product_id
+        data_tests: [not_null, unique]
+      - name: sku
+        data_tests: [not_null]
+      - name: distribution_center_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__distribution_centers')
+                field: distribution_center_id
+
+  - name: stg_thelook__users
+    description: Cleaned synthetic customer accounts and acquisition attributes.
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+      - name: account_created_at
+        data_tests: [not_null]
+
+  - name: stg_thelook__events
+    description: Privacy-reduced web events; source IP address is intentionally excluded.
+    columns:
+      - name: event_id
+        data_tests: [not_null, unique]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__users')
+                field: customer_id
+      - name: session_id
+        data_tests: [not_null]
+      - name: event_at
+        data_tests: [not_null]
+      - name: event_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [home, department, product, cart, purchase, cancel]
+
+  - name: stg_thelook__inventory_items
+    description: Cleaned physical inventory units with receipt and sale timestamps.
+    columns:
+      - name: inventory_item_id
+        data_tests: [not_null, unique]
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__products')
+                field: product_id
+      - name: inventory_created_at
+        data_tests: [not_null]
+
+  - name: stg_thelook__distribution_centers
+    description: Cleaned fulfillment-center reference data.
+    columns:
+      - name: distribution_center_id
+        data_tests: [not_null, unique]
+      - name: distribution_center_name
+        data_tests: [not_null]
